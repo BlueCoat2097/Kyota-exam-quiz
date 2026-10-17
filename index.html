@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>共通テスト風演習システム (オンライン対戦対応版)</title>
+
+  <!-- MathJax -->
+  <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['',''], ['\\(', '\\)']],
+        displayMath: [['
+','
+'], ['\\[', '\\]']]
+      },
+      startup: { typeset: false }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <!-- Firebase SDK (v9 Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    body {
+      font-family: "Hiragino Mincho ProN", "Yu Mincho", "MS PMincho", serif;
+      background-color: #eef2f5;
+      color: #111;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .exam-paper {
+      background: #ffffff;
+      width: 100%;
+      max-width: 1150px;
+      border: 2px solid #222;
+      box-shadow: 6px 6px 0px rgba(0,0,0,0.15);
+      padding: 30px;
+      box-sizing: border-box;
+    }
+
+    .exam-header {
+      border-bottom: 2px solid #222;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .exam-title { font-weight: bold; font-size: 16px; letter-spacing: 2px; color: #333; }
+    .q-number { font-size: 18px; font-weight: bold; border: 2px solid #222; padding: 3px 12px; background: #fafafa; }
+
+    .top-status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #222;
+      color: #fff;
+      padding: 10px 20px;
+      font-family: sans-serif;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .timer-badge { font-size: 20px; font-weight: bold; color: #ffeb3b; }
+    .score-badge { font-size: 18px; font-weight: bold; color: #4caf50; }
+
+    .start-container { text-align: center; padding: 20px; font-family: sans-serif; }
+    .mode-tab { display: flex; justify-content: center; gap: 15px; margin-bottom: 25px; }
+    .tab-btn { padding: 10px 25px; font-size: 16px; font-weight: bold; border: 2px solid #222; background: #fff; cursor: pointer; }
+    .tab-btn.active { background: #222; color: #fff; }
+
+    .form-group { margin: 15px 0; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .form-label { font-size: 14px; font-weight: bold; display: block; margin-bottom: 5px; }
+    .input-box { width: 100%; font-size: 16px; padding: 8px; border: 2px solid #222; box-sizing: border-box; }
+
+    .id-checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; background: #f5f5f5; padding: 10px; border: 1px solid #ccc; max-height: 120px; overflow-y: auto; }
+    .id-checkbox-item { display: flex; align-items: center; gap: 5px; font-size: 14px; }
+
+    .exam-body { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 30px; align-items: start; }
+    @media (max-width: 850px) { .exam-body { grid-template-columns: 1fr; } }
+
+    .left-column { display: flex; flex-direction: column; }
+    .meta-info { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .source-tag { font-size: 12px; color: #555; font-family: sans-serif; border-left: 3px solid #666; padding-left: 8px; font-style: italic; }
+
+    .question-box { font-size: 17px; line-height: 1.8; margin-bottom: 15px; text-align: justify; }
+    .question-image { max-width: 100%; max-height: 380px; object-fit: contain; display: block; margin: 10px auto; border: 1px solid #aaa; }
+
+    .sub-q-card { background: #fdfdfd; border: 1px solid #ccc; padding: 12px; margin-bottom: 12px; border-left: 4px solid #444; }
+
+    .right-column { position: sticky; top: 20px; max-height: 90vh; overflow-y: auto; }
+    .marksheet-container { background: #faf8f5; border: 2px dashed #666; padding: 18px; border-radius: 4px; }
+    
+    .answer-block { margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px dashed #ccc; }
+    .answer-block:last-child { border-bottom: none; }
+    .answer-label { font-weight: bold; font-size: 14px; margin-bottom: 6px; font-family: sans-serif; color: #222; }
+
+    .mark-options { display: flex; flex-direction: column; gap: 6px; }
+    .mark-item { display: flex; align-items: center; cursor: pointer; font-size: 14px; padding: 8px; border-radius: 4px; border: 1px solid #ddd; background: #fff; user-select: none; }
+    .mark-item:hover { background: #eee; }
+    .mark-circle { width: 28px; height: 28px; border: 2px solid #222; border-radius: 50%; display: inline-flex; justify-content: center; align-items: center; font-weight: bold; font-size: 16px; font-family: sans-serif; margin-right: 10px; background: #fff; flex-shrink: 0; }
+    .mark-item.selected { background: #e3edd8; border-color: #222; }
+    .mark-item.selected .mark-circle { background: #222; color: #fff; }
+    .mark-item.disabled { pointer-events: none; opacity: 0.8; }
+
+    .math-input { font-family: "Courier New", Consolas, serif; font-size: 16px; font-weight: bold; padding: 8px; width: 100%; border: 2px solid #222; box-sizing: border-box; text-align: center; background: #fff; }
+
+    .exam-btn { font-family: sans-serif; background: #222; color: #fff; border: none; padding: 12px 30px; font-size: 15px; font-weight: bold; cursor: pointer; display: block; margin: 15px auto 0; }
+    .exam-btn:hover { background: #444; }
+    .exam-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    .stat-bar-box { margin-top: 5px; font-size: 12px; font-family: sans-serif; }
+    .stat-bar-wrapper { background: #e0e0e0; border-radius: 3px; height: 12px; width: 100%; overflow: hidden; margin-top: 2px; }
+    .stat-bar-fill { background: #2196f3; height: 100%; width: 0%; transition: width 0.3s; }
+
+    .judge-box { margin-top: 15px; padding: 10px; text-align: center; font-weight: bold; font-size: 15px; font-family: sans-serif; }
+    .correct { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
+    .incorrect { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
+
+    .mid-ranking-box {
+      margin-top: 15px;
+      background: #f0f4f8;
+      border: 2px solid #336699;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: sans-serif;
+    }
+    .mid-ranking-title { font-weight: bold; font-size: 14px; color: #1a365d; margin-bottom: 8px; border-bottom: 1px solid #336699; padding-bottom: 4px; }
+    .mid-ranking-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .mid-ranking-table th, .mid-ranking-table td { padding: 5px; border-bottom: 1px solid #ddd; text-align: center; }
+
+    .explanation-container { margin-top: 15px; background: #fff8eb; border: 2px solid #e2b963; padding: 15px; border-radius: 4px; font-size: 13px; line-height: 1.6; }
+    .explanation-title { font-weight: bold; font-size: 14px; color: #8a5300; border-bottom: 1px solid #e2b963; padding-bottom: 4px; margin-bottom: 8px; font-family: sans-serif; }
+
+    .ranking-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-family: sans-serif; }
+    .ranking-table th, .ranking-table td { border: 1px solid #222; padding: 10px; text-align: center; }
+    .ranking-table th { background: #222; color: #fff; }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="exam-paper">
+  
+  <!-- 1. 初期設定画面 -->
+  <div id="start-screen" class="start-container">
+    <div class="exam-header" style="justify-content: center;">
+      <span class="exam-title" style="font-size: 20px;">共通テスト風演習システム</span>
+    </div>
+
+    <div class="mode-tab">
+      <button id="tab-single" class="tab-btn active" onclick="switchMode('single')">1人演習モード</button>
+      <button id="tab-multi" class="tab-btn" onclick="switchMode('multi')">オンライン対戦モード</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">出題カテゴリー（複数選択可）：</label>
+      <div id="id-checkboxes" class="id-checkbox-group">CSVデータを読み込み中...</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">出題数：</label>
+      <input type="number" id="question-count" class="input-box" value="3" min="1" max="50">
+    </div>
+
+    <div id="multi-settings" class="hidden">
+      <div class="form-group">
+        <label class="form-label">プレイヤー名：</label>
+        <input type="text" id="player-name" class="input-box" placeholder="名前を入力">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">部屋番号（パスワード）：</label>
+        <input type="text" id="room-id" class="input-box" placeholder="例: 155">
+      </div>
+
+      <div style="border-top: 1px dashed #ccc; margin: 15px 0; padding-top: 10px;">
+        <p style="font-weight: bold; font-size: 14px;">【ホスト（部屋作成者）専用設定】</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label class="form-label">通常問 制限時間(秒):</label>
+            <input type="number" id="normal-time" class="input-box" value="30">
+          </div>
+          <div>
+            <label class="form-label">数学問 制限時間(秒):</label>
+            <input type="number" id="math-time" class="input-box" value="60">
+          </div>
+          <div>
+            <label class="form-label">1問最高得点:</label>
+            <input type="number" id="max-score" class="input-box" value="100">
+          </div>
+          <div>
+            <label class="form-label">1問最低得点:</label>
+            <input type="number" id="min-score" class="input-box" value="10">
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+        <button class="exam-btn" style="margin:0;" onclick="handleCreateRoom()">部屋を開く (進行役)</button>
+        <button class="exam-btn" style="margin:0; background:#555;" onclick="handleJoinRoom()">部屋に入る (参加者)</button>
+      </div>
+    </div>
+
+    <button id="single-start-btn" class="exam-btn" onclick="startSingleQuiz()">1人演習を開始する</button>
+
+    <div id="lobby-waiting" class="hidden" style="margin-top: 30px; background: #fafafa; border: 2px solid #222; padding: 20px;">
+      <h3>対戦待機ルーム (部屋番号: <span id="lobby-room-id"></span>)</h3>
+      <p>参加プレイヤー一覧:</p>
+      <ul id="player-list-ul" style="list-style: none; padding: 0; font-weight: bold; font-size: 16px;"></ul>
+      <button id="host-start-btn" class="exam-btn hidden" onclick="handleHostStartGame()">対戦を開始する (進行役)</button>
+      <p id="guest-wait-msg" class="hidden" style="color: #666;">進行役がゲームを開始するのを待っています...</p>
+    </div>
+  </div>
+
+  <!-- 2. クイズ実行画面 -->
+  <div id="game-container" class="hidden">
+    <div id="top-status-bar" class="top-status-bar hidden">
+      <div>プレイヤー: <span id="bar-player-name">-</span></div>
+      <div class="timer-badge">残り時間: <span id="bar-timer">--</span>秒</div>
+      <div class="score-badge">獲得点: <span id="bar-score">0</span>pt</div>
+    </div>
+
+    <div class="exam-header">
+      <span class="exam-title">共通テスト風演習</span>
+      <span id="q-number" class="q-number">第 1 題</span>
+    </div>
+
+    <div class="exam-body">
+      <div class="left-column">
+        <div class="meta-info">
+          <span id="source-tag" class="source-tag hidden"></span>
+        </div>
+        <div id="main-question" class="question-box"></div>
+        <img id="main-image" class="question-image hidden" src="" alt="問題画像">
+        <div id="sub-questions-container"></div>
+      </div>
+
+      <div class="right-column">
+        <div class="marksheet-container">
+          <div id="answers-container"></div>
+          <button id="submit-btn" class="exam-btn" style="width: 100%; margin-top: 15px;" onclick="checkAnswers()">解答を確定して送信</button>
+        </div>
+        
+        <div id="judge-box" class="judge-box hidden"></div>
+        
+        <div id="mid-ranking-box" class="mid-ranking-box hidden">
+          <div class="mid-ranking-title">🏆 現在の順位表</div>
+          <table class="mid-ranking-table">
+            <thead>
+              <tr><th>順位</th><th>プレイヤー</th><th>得点</th></tr>
+            </thead>
+            <tbody id="mid-ranking-tbody"></tbody>
+          </table>
+        </div>
+
+        <div id="explanation-box" class="explanation-container hidden">
+          <div class="explanation-title">💡 解説・解法のアドバイス</div>
+          <div id="explanation-content"></div>
+        </div>
+
+        <button id="next-btn" class="exam-btn hidden" onclick="nextQuestion()">次の問題へ ➔</button>
+        <button id="host-next-btn" class="exam-btn hidden" style="background: #2e7d32;" onclick="handleHostNextQuestion()">次の問題に進める (進行役)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 結果発表画面 -->
+  <div id="result-container" class="hidden" style="text-align: center; padding: 40px 0;">
+    <div class="exam-header" style="justify-content: center;">
+      <span class="exam-title" style="font-size: 20px;">演 習 結 果 発 表</span>
+    </div>
+    <h2 style="font-size: 32px; margin: 20px 0;">最終成績</h2>
+    
+    <table class="ranking-table">
+      <thead>
+        <tr>
+          <th>順位 / 正解数</th>
+          <th>プレイヤー</th>
+          <th>総獲得点 / 成績</th>
+        </tr>
+      </thead>
+      <tbody id="ranking-tbody"></tbody>
+    </table>
+
+    <button class="exam-btn" onclick="resetToTop()" style="margin-top: 30px;">トップに戻る</button>
+  </div>
+
+</div>
+
+<script>
+  // ★ Firebase設定 (ステップ1で取得した設定値を貼り付けてください)
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyA9gkkhVLzouhXSBM_-SMGKUKUXJFJK_8Y",
+    authDomain: "examquizdb.firebaseapp.com",
+    databaseURL: "https://examquizdb-default-rtdb.firebaseio.com",
+    projectId: "examquizdb",
+    storageBucket: "examquizdb.firebasestorage.app",
+    messagingSenderId: "649291305608",
+    appId: "1:649291305608:web:933c89113980df9119053d",
+    measurementId: "G-VVFWLENJ88"
+  };
+
+  // Firebaseの初期化
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  const db = firebase.database();
+
+  const CSV_FILE_PATH = 'questions.csv';
+
+  let currentMode = 'single';
+  let rawParsedQuestions = [];
+  let questions = [];
+  let currentIndex = 0;
+  let score = 0;
+  let userResponses = {};
+
+  let myRoomId = "";
+  let myPlayerName = "";
+  let isHost = false;
+  let countdownTimer = null;
+  let roomConfig = null;
+  let roomState = null;
+  let roomPlayers = {};
+  let currentQuestionStartTime = 0;
+  let hasSubmittedCurrent = false;
+
+  const circleIcons = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧"];
+
+  window.onload = function() {
+    loadCSVAndInit();
+  };
+
+  function parseCSV(text) {
+    const lines = text.split(/\r\n|\n/);
+    const result = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const row = [];
+      let insideQuote = false;
+      let entry = '';
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        if (char === '"') {
+          insideQuote = !insideQuote;
+        } else if (char === ',' && !insideQuote) {
+          row.push(entry.trim());
+          entry = '';
+        } else {
+          entry += char;
+        }
+      }
+      row.push(entry.trim());
+      result.push(row);
+    }
+    return result;
+  }
+
+  async function loadCSVAndInit() {
+    try {
+      const res = await fetch(CSV_FILE_PATH);
+      if (!res.ok) throw new Error('CSVファイルの読み込みに失敗しました。');
+      const text = await res.text();
+      
+      const rows = parseCSV(text);
+      rows.shift();
+
+      const blocks = [];
+      let i = 0;
+
+      while (i < rows.length) {
+        const row = rows[i];
+        const id = row[0] ? row[0].replace(/^"|"$/g, '') : '';
+        const type = row[1] ? row[1].replace(/^"|"$/g, '').toLowerCase() : '';
+
+        if (!id) { i++; continue; }
+
+        if (type === 'group') {
+          const childCount = parseInt(row[5], 10) || 1;
+          const children = [];
+
+          for (let j = 1; j <= childCount && (i + j) < rows.length; j++) {
+            const childRow = rows[i + j];
+            const opts = childRow.slice(7).map(o => o.replace(/^"|"$/g, '')).filter(o => o !== '');
+
+            children.push({
+              type: childRow[1] ? childRow[1].replace(/^"|"$/g, '').toLowerCase() : 'single',
+              question: childRow[3] ? childRow[3].replace(/^"|"$/g, '') : '',
+              answer: childRow[5] ? childRow[5].replace(/^"|"$/g, '') : '',
+              explanation: childRow[6] ? childRow[6].replace(/^"|"$/g, '') : '',
+              options: opts
+            });
+          }
+
+          blocks.push({
+            id: id,
+            type: 'group',
+            source: row[2] ? row[2].replace(/^"|"$/g, '') : '',
+            question: row[3] ? row[3].replace(/^"|"$/g, '') : '',
+            imageUrl: row[4] ? row[4].replace(/^"|"$/g, '') : '',
+            explanation: row[6] ? row[6].replace(/^"|"$/g, '') : '',
+            children: children
+          });
+
+          i += (childCount + 1);
+        } else {
+          const opts = row.slice(7).map(o => o.replace(/^"|"$/g, '')).filter(o => o !== '');
+
+          blocks.push({
+            id: id,
+            type: type,
+            source: row[2] ? row[2].replace(/^"|"$/g, '') : '',
+            question: row[3] ? row[3].replace(/^"|"$/g, '') : '',
+            imageUrl: row[4] ? row[4].replace(/^"|"$/g, '') : '',
+            answer: row[5] ? row[5].replace(/^"|"$/g, '') : '',
+            explanation: row[6] ? row[6].replace(/^"|"$/g, '') : '',
+            options: opts,
+            children: []
+          });
+          i++;
+        }
+      }
+
+      rawParsedQuestions = blocks;
+      populateCategories();
+
+    } catch (err) {
+      document.getElementById('id-checkboxes').innerText = '問題データの読み込みに失敗しました。';
+      console.error(err);
+    }
+  }
+
+  function populateCategories() {
+    const container = document.getElementById('id-checkboxes');
+    container.innerHTML = '';
+    
+    const categories = Array.from(new Set(rawParsedQuestions.map(q => q.id)));
+    if (categories.length === 0) {
+      container.innerText = '出題カテゴリーが見つかりません。';
+      return;
+    }
+
+    categories.forEach(id => {
+      const label = document.createElement('label');
+      label.className = 'id-checkbox-item';
+      label.innerHTML = `<input type="checkbox" name="cat-id" value="${id}" checked> ${id}`;
+      container.appendChild(label);
+    });
+  }
+
+  function switchMode(mode) {
+    currentMode = mode;
+    document.getElementById('tab-single').className = mode === 'single' ? 'tab-btn active' : 'tab-btn';
+    document.getElementById('tab-multi').className = mode === 'multi' ? 'tab-btn active' : 'tab-btn';
+    
+    if (mode === 'single') {
+      document.getElementById('multi-settings').classList.add('hidden');
+      document.getElementById('single-start-btn').classList.remove('hidden');
+    } else {
+      document.getElementById('multi-settings').classList.remove('hidden');
+      document.getElementById('single-start-btn').classList.add('hidden');
+    }
+  }
+
+  function getSelectedIds() {
+    const checked = document.querySelectorAll('input[name="cat-id"]:checked');
+    return Array.from(checked).map(c => c.value);
+  }
+
+  function startSingleQuiz() {
+    const selectedIds = getSelectedIds();
+    const count = parseInt(document.getElementById('question-count').value, 10);
+
+    if (selectedIds.length === 0) {
+      alert("出題カテゴリーを1つ以上選択してください。");
+      return;
+    }
+
+    const filtered = rawParsedQuestions.filter(q => selectedIds.includes(q.id));
+    if (filtered.length === 0) {
+      alert("選択されたカテゴリーに該当する問題がありません。");
+      return;
+    }
+
+    for (let k = filtered.length - 1; k > 0; k--) {
+      const r = Math.floor(Math.random() * (k + 1));
+      [filtered[k], filtered[r]] = [filtered[r], filtered[k]];
+    }
+
+    questions = filtered.slice(0, Math.min(count, filtered.length));
+    currentIndex = 0;
+    score = 0;
+
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('game-container').classList.remove('hidden');
+    showQuestion();
+  }
+
+  // --- オンライン対戦（Firebase連携）ロジック ---
+
+  function handleCreateRoom() {
+    const selectedIds = getSelectedIds();
+    const name = document.getElementById('player-name').value.trim();
+    const roomId = document.getElementById('room-id').value.trim();
+
+    if (selectedIds.length === 0 || !name || !roomId) {
+      alert("カテゴリー、プレイヤー名、部屋番号を入力してください。");
+      return;
+    }
+
+    const filtered = rawParsedQuestions.filter(q => selectedIds.includes(q.id));
+    const count = parseInt(document.getElementById('question-count').value, 10);
+    for (let k = filtered.length - 1; k > 0; k--) {
+      const r = Math.floor(Math.random() * (k + 1));
+      [filtered[k], filtered[r]] = [filtered[r], filtered[k]];
+    }
+    const qList = filtered.slice(0, Math.min(count, filtered.length));
+
+    myPlayerName = name;
+    myRoomId = roomId;
+    isHost = true;
+
+    const roomRef = db.ref('rooms/' + roomId);
+    roomRef.set({
+      config: {
+        roomId: roomId,
+        questions: qList,
+        normalTime: document.getElementById('normal-time').value,
+        mathTime: document.getElementById('math-time').value,
+        maxScore: document.getElementById('max-score').value,
+        minScore: document.getElementById('min-score').value
+      },
+      status: 'waiting',
+      state: { qIndex: 0, isAnswerOpen: false, startTime: 0 },
+      players: {
+        [name]: { name: name, isHost: true, score: 0, submittedCurrent: false }
+      }
+    }).then(() => {
+      document.getElementById('lobby-room-id').innerText = roomId;
+      document.getElementById('lobby-waiting').classList.remove('hidden');
+      document.getElementById('host-start-btn').classList.remove('hidden');
+      listenToRoomStatus();
+    });
+  }
+
+  function handleJoinRoom() {
+    const name = document.getElementById('player-name').value.trim();
+    const roomId = document.getElementById('room-id').value.trim();
+
+    if (!name || !roomId) {
+      alert("プレイヤー名と部屋番号を入力してください。");
+      return;
+    }
+
+    myPlayerName = name;
+    myRoomId = roomId;
+    isHost = false;
+
+    const playerRef = db.ref(`rooms/roomId/players/{name}`);
+    playerRef.set({
+      name: name,
+      isHost: false,
+      score: 0,
+      submittedCurrent: false
+    }).then(() => {
+      document.getElementById('lobby-room-id').innerText = roomId;
+      document.getElementById('lobby-waiting').classList.remove('hidden');
+      document.getElementById('guest-wait-msg').classList.remove('hidden');
+      listenToRoomStatus();
+    });
+  }
+
+  function listenToRoomStatus() {
+    db.ref('rooms/' + myRoomId).on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      roomConfig = data.config;
+      roomState = data.state;
+      roomPlayers = data.players || {};
+
+      const playerList = Object.values(roomPlayers);
+      const ul = document.getElementById('player-list-ul');
+      ul.innerHTML = playerList.map(p => `<li>${p.name} ${p.isHost ? '(進行役)' : ''} ${p.submittedCurrent ? '✓解答済' : ''}</li>`).join('');
+
+      if (data.status === 'playing') {
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-container').classList.remove('hidden');
+        document.getElementById('top-status-bar').classList.remove('hidden');
+        document.getElementById('bar-player-name').innerText = myPlayerName;
+
+        if (currentIndex !== roomState.qIndex || questions.length === 0) {
+          questions = roomConfig.questions;
+          currentIndex = roomState.qIndex;
+          currentQuestionStartTime = roomState.startTime;
+          showQuestion();
+        }
+
+        if (roomState.isAnswerOpen) {
+          showOpenAnswersUI();
+        }
+
+        const me = roomPlayers[myPlayerName];
+        if (me) {
+          document.getElementById('bar-score').innerText = me.score || 0;
+        }
+      } else if (data.status === 'finished') {
+        showFinalResult();
+      }
+    });
+  }
+
+  function handleHostStartGame() {
+    db.ref(`rooms/${myRoomId}`).update({
+      status: 'playing',
+      'state/startTime': Date.now(),
+      'state/qIndex': 0,
+      'state/isAnswerOpen': false
+    });
+  }
+
+  function handleHostNextQuestion() {
+    const nextIdx = currentIndex + 1;
+    if (nextIdx >= questions.length) {
+      db.ref(`rooms/${myRoomId}`).update({ status: 'finished' });
+    } else {
+      // 全員のSubmittedフラグをリセット
+      const updates = {};
+      Object.keys(roomPlayers).forEach(pName => {
+        updates[`rooms/myRoomId/players/{pName}/submittedCurrent`] = false;
+      });
+      updates[`rooms/${myRoomId}/state`] = {
+        qIndex: nextIdx,
+        isAnswerOpen: false,
+        startTime: Date.now()
+      };
+      db.ref().update(updates);
+    }
+  }
+
+  function startTimer(timeLimitSec) {
+    if (countdownTimer) clearInterval(countdownTimer);
+
+    const updateTimerDisplay = () => {
+      const now = Date.now();
+      const elapsedSec = Math.floor((now - currentQuestionStartTime) / 1000);
+      const remaining = Math.max(0, timeLimitSec - elapsedSec);
+
+      document.getElementById('bar-timer').innerText = remaining;
+
+      if (remaining <= 0) {
+        clearInterval(countdownTimer);
+        if (currentMode === 'multi' && !hasSubmittedCurrent) {
+          checkAnswers(true);
+        }
+      }
+    };
+
+    updateTimerDisplay();
+    countdownTimer = setInterval(updateTimerDisplay, 500);
+  }
+
+  function renderMathIfRequired(qBlock) {
+    if (!window.MathJax || !window.MathJax.typesetPromise) return;
+    if (MathJax.typesetClear) MathJax.typesetClear();
+
+    const subList = (qBlock.type === 'group') ? qBlock.children : [qBlock];
+    const hasMath = (qBlock.type === 'math') || subList.some(sub => sub.type === 'math');
+
+    if (hasMath) {
+      setTimeout(() => {
+        MathJax.typesetPromise().catch(err => console.log('MathJax Error:', err));
+      }, 50);
+    }
+  }
+
+  function showQuestion() {
+    if (currentIndex >= questions.length) {
+      showFinalResult();
+      return;
+    }
+
+    hasSubmittedCurrent = false;
+    userResponses = {};
+
+    const qBlock = questions[currentIndex];
+
+    document.getElementById('q-number').innerText = `第 ${currentIndex + 1} 題 / 全 ${questions.length} 題`;
+    
+    const sourceEl = document.getElementById('source-tag');
+    if (qBlock.source) {
+      sourceEl.innerText = `出典: ${qBlock.source}`;
+      sourceEl.classList.remove('hidden');
+    } else {
+      sourceEl.classList.add('hidden');
+    }
+
+    document.getElementById('main-question').innerHTML = qBlock.question || '';
+    const imgEl = document.getElementById('main-image');
+    if (qBlock.imageUrl) {
+      imgEl.src = qBlock.imageUrl;
+      imgEl.classList.remove('hidden');
+    } else {
+      imgEl.classList.add('hidden');
+    }
+
+    const subContainer = document.getElementById('sub-questions-container');
+    subContainer.innerHTML = '';
+    const answersContainer = document.getElementById('answers-container');
+    answersContainer.innerHTML = '';
+
+    document.getElementById('judge-box').className = 'judge-box hidden';
+    document.getElementById('mid-ranking-box').classList.add('hidden');
+    document.getElementById('explanation-box').classList.add('hidden');
+    document.getElementById('explanation-content').innerHTML = '';
+
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('submit-btn').innerText = "解答を確定して送信";
+    document.getElementById('submit-btn').classList.remove('hidden');
+    document.getElementById('next-btn').classList.add('hidden');
+    document.getElementById('host-next-btn').classList.add('hidden');
+
+    const subList = (qBlock.type === 'group') ? qBlock.children : [qBlock];
+
+    subList.forEach((sub, idx) => {
+      const qNumStr = (qBlock.type === 'group') ? `小問 (${idx + 1})` : `【問 ${currentIndex + 1}】`;
+
+      if (qBlock.type === 'group') {
+        const card = document.createElement('div');
+        card.className = 'sub-q-card';
+        card.innerHTML = `<strong>${qNumStr}</strong> ${sub.question}`;
+        subContainer.appendChild(card);
+      }
+
+      const ansBlock = document.createElement('div');
+      ansBlock.className = 'answer-block';
+
+      const label = document.createElement('div');
+      label.className = 'answer-label';
+      label.innerText = `${qNumStr} の解答欄`;
+      ansBlock.appendChild(label);
+
+      if (sub.type === 'single' || sub.type === 'multiple') {
+        const optsList = document.createElement('div');
+        optsList.className = 'mark-options';
+
+        sub.options.forEach((opt, optIdx) => {
+          const item = document.createElement('div');
+          item.className = 'mark-item';
+          item.id = `mark-idx-{optIdx + 1}`;
+          item.innerHTML = `
+            <span class="mark-circle">${optIdx + 1}</span> 
+            <span>${opt}</span>
+            <div id="stat-idx-{optIdx + 1}" class="stat-bar-box hidden"></div>
+          `;
+          item.onclick = function() {
+            selectOption(idx, optIdx + 1, sub.type);
+          };
+
+          optsList.appendChild(item);
+        });
+        ansBlock.appendChild(optsList);
+
+      } else if (sub.type === 'math' || sub.type === 'text') {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'math-input';
+        input.id = `input-${idx}`;
+        input.dataset.subidx = idx;
+        input.placeholder = sub.type === 'math' ? '数式・数値を入力 (例: -1/2)' : '解答を入力';
+        input.autocomplete = 'off';
+
+        ansBlock.appendChild(input);
+      }
+
+      answersContainer.appendChild(ansBlock);
+    });
+
+    if (currentMode === 'multi' && roomConfig) {
+      const hasMath = (qBlock.type === 'math') || subList.some(s => s.type === 'math');
+      const timeLimit = hasMath ? Number(roomConfig.mathTime) : Number(roomConfig.normalTime);
+      startTimer(timeLimit);
+    }
+
+    renderMathIfRequired(qBlock);
+  }
+
+  function selectOption(qIdx, optVal, type) {
+    if (hasSubmittedCurrent) return;
+
+    const valStr = String(optVal);
+
+    if (type === 'single') {
+      userResponses[qIdx] = valStr;
+      document.querySelectorAll(`[id^="mark-${qIdx}-"]`).forEach(el => el.classList.remove('selected'));
+      const targetEl = document.getElementById(`mark-qIdx-{optVal}`);
+      if (targetEl) targetEl.classList.add('selected');
+
+    } else if (type === 'multiple') {
+      let currentSelected = [];
+      if (userResponses[qIdx]) {
+        currentSelected = String(userResponses[qIdx]).split(',').map(s => s.trim()).filter(s => s !== "");
+      }
+
+      const targetEl = document.getElementById(`mark-qIdx-{optVal}`);
+      if (currentSelected.includes(valStr)) {
+        currentSelected = currentSelected.filter(v => v !== valStr);
+        if (targetEl) targetEl.classList.remove('selected');
+      } else {
+        currentSelected.push(valStr);
+        if (targetEl) targetEl.classList.add('selected');
+      }
+
+      currentSelected.sort((a, b) => Number(a) - Number(b));
+      userResponses[qIdx] = currentSelected.join(',');
+    }
+  }
+
+  function cleanString(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/\s+/g, '')
+      .toLowerCase();
+  }
+
+  function isAnswerMatch(userAns, correctAns, type) {
+    const uClean = cleanString(userAns);
+    const cClean = cleanString(correctAns);
+
+    if (uClean === "" || cClean === "") return false;
+
+    if (type === 'multiple') {
+      const uArr = uClean.split(',').filter(x => x !== "").sort().join(',');
+      const cArr = cClean.split(',').filter(x => x !== "").sort().join(',');
+      return uArr === cArr;
+    }
+
+    return uClean === cClean;
+  }
+
+  function formatCorrectAnswer(ansStr, type) {
+    if (type === 'single' || type === 'multiple') {
+      const parts = String(ansStr).split(',').map(p => p.trim());
+      const formatted = parts.map(p => {
+        const num = parseInt(p, 10);
+        return (!isNaN(num) && circleIcons[num - 1]) ? circleIcons[num - 1] : p;
+      });
+      return formatted.join('・');
+    }
+    return ansStr;
+  }
+
+  function checkAnswers(isTimeout = false) {
+    if (hasSubmittedCurrent) return;
+    hasSubmittedCurrent = true;
+
+    document.querySelectorAll('.mark-item').forEach(el => el.classList.add('disabled'));
+
+    const qBlock = questions[currentIndex];
+    const subList = (qBlock.type === 'group') ? qBlock.children : [qBlock];
+
+    document.querySelectorAll('.math-input').forEach(inputEl => {
+      const subIdx = inputEl.dataset.subidx;
+      if (subIdx !== undefined) {
+        userResponses[subIdx] = inputEl.value;
+      }
+    });
+
+    document.getElementById('submit-btn').disabled = true;
+    document.querySelectorAll('.math-input').forEach(el => el.disabled = true);
+
+    if (currentMode === 'single') {
+      let correctCount = 0;
+      let details = [];
+      let expHtmlArray = [];
+
+      if (qBlock.explanation) expHtmlArray.push(`<div class="explanation-item"><strong>【全体の解説】</strong><br>${qBlock.explanation}</div>`);
+
+      subList.forEach((sub, idx) => {
+        const uAns = userResponses[idx] !== undefined ? userResponses[idx] : "";
+        const isCorrect = isAnswerMatch(uAns, sub.answer, sub.type);
+
+        if (isCorrect) correctCount++;
+        details.push(`(${idx+1}) ${isCorrect ? '〇' : '× [正解: ' + formatCorrectAnswer(sub.answer, sub.type) + ']'}`);
+        if (sub.explanation) expHtmlArray.push(`<div class="explanation-item"><strong>【小問(idx+1)】</strong><br>{sub.explanation}</div>`);
+      });
+
+      const isAllCorrect = (correctCount === subList.length);
+      if (isAllCorrect) score++;
+
+      const judgeBox = document.getElementById('judge-box');
+      judgeBox.classList.remove('hidden');
+      judgeBox.className = isAllCorrect ? 'judge-box correct' : 'judge-box incorrect';
+      judgeBox.innerHTML = isAllCorrect ? `全問正解！` : `正解数: correctCount/{subList.length}<br><small>${details.join(' , ')}</small>`;
+
+      if (expHtmlArray.length > 0) {
+        document.getElementById('explanation-content').innerHTML = expHtmlArray.join('<hr style="border:0; border-top:1px dashed #e2b963; margin:10px 0;">');
+        document.getElementById('explanation-box').classList.remove('hidden');
+      }
+
+      document.getElementById('next-btn').classList.remove('hidden');
+      renderMathIfRequired(qBlock);
+
+    } else {
+      // マルチプレイ解答提出
+      const timeTakenSec = Math.max(1, Math.floor((Date.now() - currentQuestionStartTime) / 1000));
+      
+      let correctCount = 0;
+      subList.forEach((sub, idx) => {
+        if (isAnswerMatch(userResponses[idx], sub.answer, sub.type)) correctCount++;
+      });
+
+      const isAllCorrect = (correctCount === subList.length);
+      const maxScore = Number(roomConfig.maxScore) || 100;
+      const minScore = Number(roomConfig.minScore) || 10;
+      const timeLimit = (qBlock.type === 'math' || subList.some(s => s.type === 'math')) ? Number(roomConfig.mathTime) : Number(roomConfig.normalTime);
+
+      let earned = 0;
+      if (isAllCorrect) {
+        const ratio = Math.max(0, (timeLimit - timeTakenSec) / timeLimit);
+        earned = Math.round(minScore + (maxScore - minScore) * ratio);
+      }
+
+      const playerRef = db.ref(`rooms/myRoomId/players/{myPlayerName}`);
+      playerRef.once('value').then(snap => {
+        const pData = snap.val() || {};
+        const currentScore = pData.score || 0;
+        const newScore = currentScore + earned;
+
+        playerRef.update({
+          score: newScore,
+          submittedCurrent: true,
+          [`answers/${currentIndex}`]: { responses: userResponses, points: earned }
+        });
+      });
+
+      document.getElementById('submit-btn').innerText = "他のプレイヤーの回答待ち...";
+
+      // 全員回答完了の判定（ホスト側で実行）
+      if (isHost) {
+        db.ref(`rooms/${myRoomId}/players`).on('value', (pSnap) => {
+          const players = pSnap.val() || {};
+          const allSubmitted = Object.values(players).every(p => p.submittedCurrent);
+          if (allSubmitted) {
+            db.ref(`rooms/${myRoomId}/state/isAnswerOpen`).set(true);
+          }
+        });
+      }
+    }
+  }
+
+  function showOpenAnswersUI() {
+    if (countdownTimer) clearInterval(countdownTimer);
+
+    const qBlock = questions[currentIndex];
+    const subList = (qBlock.type === 'group') ? qBlock.children : [qBlock];
+
+    document.getElementById('submit-btn').classList.add('hidden');
+    
+    if (isHost) {
+      document.getElementById('host-next-btn').classList.remove('hidden');
+    }
+
+    const playerList = Object.values(roomPlayers);
+    const totalPlayers = playerList.length;
+
+    subList.forEach((sub, subIdx) => {
+      if (sub.type === 'single' || sub.type === 'multiple') {
+        const counts = {};
+        sub.options.forEach((_, optIdx) => counts[optIdx + 1] = 0);
+
+        playerList.forEach(p => {
+          const pAns = p.answers && p.answers[currentIndex] && p.answers[currentIndex].responses;
+          if (pAns && pAns[subIdx] !== undefined) {
+            const selectedArr = String(pAns[subIdx]).split(',').map(s => s.trim());
+            selectedArr.forEach(val => {
+              if (counts[val] !== undefined) {
+                counts[val] += 1;
+              }
+            });
+          }
+        });
+
+        sub.options.forEach((_, optIdx) => {
+          const count = counts[optIdx + 1] || 0;
+          const percent = totalPlayers > 0 ? Math.round((count / totalPlayers) * 100) : 0;
+          const statBox = document.getElementById(`stat-subIdx-{optIdx + 1}`);
+
+          if (statBox) {
+            statBox.innerHTML = `
+              <span>count人({percent}%)</span>
+              <div class="stat-bar-wrapper"><div class="stat-bar-fill" style="width: ${percent}%;"></div></div>
+            `;
+            statBox.classList.remove('hidden');
+          }
+        });
+      }
+    });
+
+    const me = roomPlayers[myPlayerName];
+    const myAnsObj = me && me.answers && me.answers[currentIndex];
+    const earned = myAnsObj ? myAnsObj.points : 0;
+
+    let details = [];
+    let expHtmlArray = [];
+
+    if (qBlock.explanation) expHtmlArray.push(`<div class="explanation-item"><strong>【全体の解説】</strong><br>${qBlock.explanation}</div>`);
+
+    subList.forEach((sub, idx) => {
+      const displayAnswer = formatCorrectAnswer(sub.answer, sub.type);
+      details.push(`(${idx+1}) [正解: ${displayAnswer}]`);
+      if (sub.explanation) expHtmlArray.push(`<div class="explanation-item"><strong>【小問(idx+1)】</strong><br>{sub.explanation}</div>`);
+    });
+
+    const judgeBox = document.getElementById('judge-box');
+    judgeBox.classList.remove('hidden');
+    judgeBox.className = earned > 0 ? 'judge-box correct' : 'judge-box incorrect';
+    judgeBox.innerHTML = `獲得点: +earnedpt<br><small>{details.join(' , ')}</small>`;
+
+    const sorted = [...playerList].sort((a, b) => (b.score || 0) - (a.score || 0));
+    const midTbody = document.getElementById('mid-ranking-tbody');
+    midTbody.innerHTML = sorted.map((p, idx) => `
+      <tr style="${p.name === myPlayerName ? 'background:#fffde7; font-weight:bold;' : ''}">
+        <td>第 ${idx + 1} 位</td>
+        <td>${p.name} ${p.name === myPlayerName ? '(あなた)' : ''}</td>
+        <td>${p.score || 0} pt</td>
+      </tr>
+    `).join('');
+    document.getElementById('mid-ranking-box').classList.remove('hidden');
+
+    if (expHtmlArray.length > 0) {
+      document.getElementById('explanation-content').innerHTML = expHtmlArray.join('<hr style="border:0; border-top:1px dashed #e2b963; margin:10px 0;">');
+      document.getElementById('explanation-box').classList.remove('hidden');
+    }
+
+    renderMathIfRequired(qBlock);
+  }
+
+  function nextQuestion() {
+    currentIndex++;
+    showQuestion();
+  }
+
+  function showFinalResult() {
+    document.getElementById('game-container').classList.add('hidden');
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('result-container').classList.remove('hidden');
+
+    const tbody = document.getElementById('ranking-tbody');
+    tbody.innerHTML = '';
+
+    if (currentMode === 'multi') {
+      const playerList = Object.values(roomPlayers);
+      const sorted = [...playerList].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+      sorted.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        if (p.name === myPlayerName) tr.style.background = '#fffde7';
+
+        tr.innerHTML = `
+          <td style="font-weight:bold;">第 ${idx + 1} 位</td>
+          <td>${p.name} ${p.name === myPlayerName ? '(あなた)' : ''}</td>
+          <td style="font-weight:bold; color:#1b5e20;">${p.score || 0} pt</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } else {
+      const percent = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
+      tbody.innerHTML = `
+        <tr>
+          <td style="font-weight:bold; color:#2e7d32; font-size:18px;">${score} 問正解</td>
+          <td>あなた</td>
+          <td style="font-weight:bold;">正解率: ${percent} %</td>
+        </tr>
+      `;
+    }
+  }
+
+  function resetToTop() {
+    if (myRoomId) {
+      db.ref(`rooms/${myRoomId}`).off();
+    }
+
+    questions = [];
+    currentIndex = 0;
+    score = 0;
+    userResponses = {};
+    hasSubmittedCurrent = false;
+
+    document.getElementById('result-container').classList.add('hidden');
+    document.getElementById('game-container').classList.add('hidden');
+    document.getElementById('start-screen').classList.remove('hidden');
+
+    populateCategories();
+  }
+</script>
+</body>
+</html>
+
